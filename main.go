@@ -40,10 +40,8 @@ func main() {
 
 	var pods Pods
 
-	jsonErr := json.Unmarshal(podsJSON, &pods)
-
-	if jsonErr != nil {
-		panic(jsonErr)
+	if err := json.Unmarshal(podsJSON, &pods); err != nil {
+		panic(err)
 	}
 
 	var targetPod string
