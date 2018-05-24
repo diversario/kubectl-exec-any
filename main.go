@@ -9,6 +9,8 @@ import (
 	"regexp"
 )
 
+import "github.com/bradfitz/slice"
+
 type Deployments struct {
 	Items []struct {
 		Meta struct {
@@ -50,13 +52,17 @@ func main() {
 
 	searchRegexp := regexp.MustCompile(fmt.Sprintf(".*%s.*", search))
 
+	type PodMeta struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+	}
+
+	type Pod struct {
+		Meta PodMeta `json:"metadata"`
+	}
+
 	type Pods struct {
-		Items []struct {
-			Meta struct {
-				Name      string `json:"name"`
-				Namespace string `json:"namespace"`
-			} `json:"metadata"`
-		} `json:"items"`
+		Items []Pod `json:"items"`
 	}
 
 	podsJSON, err2 := exec.Command(kubectl, "--context", context, "get", "--raw=/api/v1/pods").Output()
@@ -76,25 +82,34 @@ func main() {
 
 	var targetPod string
 	var targetNs string
-	var matchingPods []Pods
+	var matchingPods []Pod
 
-	for _, dep := range pods.Items {
-		//fmt.Printf("DEP %s, %s\n", dep.Meta.Name, dep.Meta.Namespace)
+	for _, pod := range pods.Items {
+		//fmt.Printf("pod %s, %s\n", pod.Meta.Name, pod.Meta.Namespace)
 
-		if searchRegexp.MatchString(dep.Meta.Name) {
-			matchingPods.
-				targetPod = dep.Meta.Name
-			targetNs = dep.Meta.Namespace
-			break
+		if searchRegexp.MatchString(pod.Meta.Name) {
+			matchingPods = append(matchingPods, pod)
 		}
 	}
 
-	if targetPod == "" || targetNs == "" {
+	if len(matchingPods) == 0 {
 		fmt.Printf("Nothing found for %s", search)
 		os.Exit(0)
 	}
 
-	fmt.Printf("Attaching to %s in namespace %s...\n", targetPod, targetNs)
+	slice.Sort(matchingPods[:], func(i, j int) bool {
+		return matchingPods[i].Meta.Name < matchingPods[j].Meta.Name
+	})
+
+	fmt.Println("Pods matching the search:")
+	for _, item := range matchingPods {
+		fmt.Printf("%s in namespace %s\n", item.Meta.Name, item.Meta.Namespace)
+	}
+
+	targetPod = matchingPods[0].Meta.Name
+	targetNs = matchingPods[0].Meta.Namespace
+
+	fmt.Printf("\nAttaching to %s in namespace %s...\n", targetPod, targetNs)
 
 	kubectlExec := exec.Command(kubectl, "--context", context, "exec", "-it", targetPod, "-n", targetNs, cmd)
 
