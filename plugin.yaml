@@ -1,0 +1,9 @@
+name: "exec-any"
+shortDesc: "Exec into any available pod in a deployment"
+longDesc: ""
+example: ""
+command: "./main"
+flags:
+  - name: "heat"
+    desc: "Fire heat"
+    defValue: "extreme"
